@@ -73,21 +73,29 @@ class DeviceRepositoryAdapter(
     @Transactional
     override fun upsert(device: Device): Device {
         val existing = jpa.findById(device.id).orElse(null)
-        return if (existing == null) {
-            jpa.save(DeviceEntity.fromDomain(device)).toDomain()
-        } else {
-            // Preserve createdAt and the original owner. A device id arrives from
-            // the client, so treating a re-registration as a full overwrite would
-            // let one user's device row be reassigned by guessing an id.
-            if (existing.userId != device.userId) {
-                throw AppException(ErrorCode.FORBIDDEN, "Device is registered to another account")
-            }
-            existing.platform = device.platform.name
-            existing.lastSeenAt = device.lastSeenAt
-            device.displayName?.let { existing.displayName = it }
-            device.appVersion?.let { existing.appVersion = it }
-            jpa.save(existing).toDomain()
+        if (existing == null) {
+            return jpa.save(DeviceEntity.fromDomain(device)).toDomain()
         }
+
+        // A device id identifies an *installation*, not a person, and one phone
+        // or laptop is routinely used by more than one account - sign out of one,
+        // sign in to another. So a change of owner is reassignment, not an
+        // attack: the row follows whoever is currently signed in.
+        //
+        // An earlier version rejected this with 403. That guarded against
+        // nothing real - device ids are never exposed to other users and are
+        // never an authorization input, they only carry display metadata - while
+        // breaking the ordinary case of a second account on the same device.
+        //
+        // The cost is that a stale refresh_tokens.device_id may point at a row
+        // now owned by someone else, so a future "your sessions" screen must
+        // read device metadata scoped by user, not follow that link blindly.
+        existing.userId = device.userId
+        existing.platform = device.platform.name
+        existing.lastSeenAt = device.lastSeenAt
+        device.displayName?.let { existing.displayName = it }
+        device.appVersion?.let { existing.appVersion = it }
+        return jpa.save(existing).toDomain()
     }
 
     override fun findAllByUser(userId: UUID): List<Device> =

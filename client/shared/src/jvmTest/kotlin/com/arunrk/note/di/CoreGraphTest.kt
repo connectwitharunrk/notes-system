@@ -12,9 +12,6 @@ import com.arunrk.note.core.network.api.NoteApi
 import com.arunrk.note.core.network.api.SyncApi
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.test.runTest
-import org.koin.core.context.stopKoin
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -33,16 +30,14 @@ import kotlin.test.assertTrue
  */
 class CoreGraphTest {
 
-    private lateinit var koin: org.koin.core.Koin
-
-    @BeforeTest
-    fun setUp() {
-        koin = initKoin(PlatformContext(), baseUrl = "http://127.0.0.1:8080").koin
-    }
-
-    @AfterTest
-    fun tearDown() {
-        stopKoin()
+    /**
+     * Started once per class: DataStore refuses a second instance over the same
+     * file within a process, so a per-method graph would fail on the second test.
+     */
+    private companion object {
+        val koin: org.koin.core.Koin by lazy {
+            initKoin(PlatformContext(), baseUrl = "http://127.0.0.1:8080").koin
+        }
     }
 
     @Test

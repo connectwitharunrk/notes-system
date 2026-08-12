@@ -328,6 +328,20 @@ SecureStorage.readSession()
 Ktor `Auth` (Bearer) plugin performs refresh, wrapped in a **single-flight `Mutex`**
 so N concurrent 401s produce exactly one refresh call.
 
+**The Auth plugin caches tokens in memory and never re-reads storage.** `loadTokens`
+runs once per client. Every transition that changes who is signed in must call
+`AuthSessionInvalidator.invalidate()`, or requests after sign-in go out with the
+tokens cached at startup, and — worse — requests after sign-out keep the previous
+user's access token and authenticate the *next* account as them. Found by
+integration test, not by inspection.
+
+**A device id identifies an installation, not a person.** One phone or laptop is
+routinely used by several accounts in turn, so `DeviceRepository.upsert`
+reassigns the row to whoever is currently signed in. An earlier version rejected
+a change of owner with 403; that guarded nothing real (device ids are never
+exposed to other users and are never an authorization input) while breaking the
+ordinary case of a second account on the same device.
+
 **Logout is offline-safe**: local session and data are cleared immediately; the
 server revocation call is queued best-effort.
 
@@ -518,3 +532,5 @@ Nine contracts: `Login`, `Register`, `ForgotPassword`, `NotesList`, `NoteEditor`
 | L10 | Rate limiting is per-instance (in-memory) | Adequate for a single deployment. Horizontal scaling needs a shared backend (`bucket4j-redis`); the `RateLimiter` interface would not change. |
 | L11 | **All `iosMain` code is unverified** | iOS targets cannot be compiled on a Windows host, so every `actual` in `iosMain` — Keychain storage, NWPathMonitor connectivity, the native SQLite driver, the Darwin HTTP engine — is written to the documented API but has never been built or run. Expect to fix compilation details on the first build from a Mac. Android and Desktop are verified by running them. |
 | L12 | Desktop has no OS connectivity signal | A plain JVM process cannot observe network state without polling a hard-coded host, which is both a privacy smell and wrong behind a proxy. `NetworkMonitor` instead derives offline status from real request outcomes, so desktop notices it is offline one failed request later than mobile. |
+| L13 | `Icons.Filled.*` is unavailable | Compose Multiplatform's material3 does not bundle `androidx.compose.material.icons` at all, and `material-icons-extended` stopped at 1.7.3. Every icon is hand-built from Material Symbols path data in `NoteIcons` — no dependency, no version skew. |
+| L14 | One DataStore per file per process | DataStore registers its file for the process lifetime and refuses a second instance. Production has a single Koin graph so this never bites, but tests must start Koin once per class and fork a JVM per class (`forkEvery(1)`). |

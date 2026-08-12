@@ -1,6 +1,7 @@
 package com.arunrk.note.di
 
 import com.arunrk.note.core.common.platform.PlatformContext
+import com.arunrk.note.feature.auth.di.authFeatureModule
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 import org.koin.dsl.KoinAppDeclaration
@@ -15,5 +16,10 @@ fun initKoin(
     appDeclaration: KoinAppDeclaration = {},
 ): KoinApplication = startKoin {
     appDeclaration()
-    modules(coreModule(context, defaultApiConfig(baseUrl)))
+    modules(
+        coreModule(context, defaultApiConfig(baseUrl)),
+        dataModule,
+        domainModule,
+        authFeatureModule,
+    )
 }
