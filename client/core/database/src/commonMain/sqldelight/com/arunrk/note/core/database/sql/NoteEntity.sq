@@ -223,6 +223,12 @@ WHERE userId = :userId AND isDeleted = 1 AND syncStatus = 'SYNCED' AND deletedAt
 deleteSyncedForUser:
 DELETE FROM noteEntity WHERE userId = :userId AND syncStatus = 'SYNCED';
 
+-- Hard delete. Only ever used for a note the server has never seen (baseVersion
+-- 0), such as one opened and left empty. Removing a synced note this way would
+-- hide it from this device while leaving it alive on every other one.
+deleteById:
+DELETE FROM noteEntity WHERE id = ?;
+
 deleteAllForUser:
 DELETE FROM noteEntity WHERE userId = :userId;
 

@@ -37,5 +37,10 @@ kotlin {
             implementation(libs.kotlinx.coroutinesTest)
             implementation(libs.turbine)
         }
+        jvmTest.dependencies {
+            // Real SQLite, in memory. Testing a repository against a mocked DAO
+            // proves the mock works, not that the SQL does.
+            implementation(libs.sqldelight.driver.sqlite)
+        }
     }
 }
