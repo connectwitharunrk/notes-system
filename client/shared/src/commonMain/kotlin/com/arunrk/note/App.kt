@@ -65,7 +65,7 @@ private fun RootContent(
             AuthState.Unauthenticated -> AuthNavHost()
 
             is AuthState.Authenticated -> MainNavHost(
-                onSignOut = sessionViewModel::signOut,
+                onSignOut = sessionViewModel::signOutClicked,
             )
         }
     }

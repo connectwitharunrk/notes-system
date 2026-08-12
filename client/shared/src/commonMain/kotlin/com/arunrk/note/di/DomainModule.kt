@@ -6,6 +6,11 @@ import com.arunrk.note.data.preferences.PreferencesRepositoryImpl
 import com.arunrk.note.domain.repository.AuthRepository
 import com.arunrk.note.domain.repository.NoteRepository
 import com.arunrk.note.domain.repository.PreferencesRepository
+import com.arunrk.note.domain.repository.SyncManager
+import com.arunrk.note.domain.usecase.auth.SignOutUseCase
+import com.arunrk.note.sync.DefaultSyncManager
+import com.arunrk.note.sync.SyncEngine
+import com.arunrk.note.sync.SyncLocalStore
 import com.arunrk.note.domain.usecase.note.CreateNoteUseCase
 import com.arunrk.note.domain.usecase.note.DeleteNoteUseCase
 import com.arunrk.note.domain.usecase.note.DiscardBlankNoteUseCase
@@ -41,6 +46,25 @@ val dataModule: Module = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get(), get(), get()) }
     single<NoteRepository> { NoteRepositoryImpl(get(), get()) }
     single<PreferencesRepository> { PreferencesRepositoryImpl(get()) }
+
+    // ---- synchronisation --------------------------------------------------
+
+    single { SyncLocalStore(get(), get()) }
+    single { SyncEngine(get(), get()) }
+    single<SyncManager> {
+        DefaultSyncManager(
+            engine = get(),
+            store = get(),
+            database = get(),
+            authRepository = get(),
+            networkMonitor = get(),
+            dispatchers = get(),
+            // The process-lifetime scope: sync must outlive any screen, and
+            // tying it to a ViewModel would cancel a push mid-flight whenever
+            // the user navigated away.
+            scope = get(AppScope),
+        )
+    }
 }
 
 val domainModule: Module = module {
@@ -66,6 +90,7 @@ val domainModule: Module = module {
     factory { DeleteNoteUseCase(get()) }
     factory { RestoreNoteUseCase(get()) }
     factory { DiscardBlankNoteUseCase(get()) }
+    factory { SignOutUseCase(get(), get(), get()) }
 
     viewModelOf(::SessionViewModel)
 }
