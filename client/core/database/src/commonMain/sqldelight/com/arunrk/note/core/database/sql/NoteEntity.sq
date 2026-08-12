@@ -1,0 +1,230 @@
+-- ---------------------------------------------------------------------------
+-- Local note table: the SINGLE SOURCE OF TRUTH for the UI.
+--
+-- Mirrors the server representation plus local-only sync bookkeeping.
+-- Timestamps are epoch milliseconds (UTC). Enum-ish columns are plain TEXT and
+-- are mapped in the data layer - the database stays dumb on purpose.
+-- ---------------------------------------------------------------------------
+CREATE TABLE noteEntity (
+    id                TEXT    NOT NULL PRIMARY KEY,
+    userId            TEXT    NOT NULL,
+
+    title             TEXT    NOT NULL DEFAULT '',
+    content           TEXT    NOT NULL DEFAULT '',
+    contentType       TEXT    NOT NULL DEFAULT 'PLAIN',
+    color             TEXT,
+    isPinned          INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    isArchived        INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    isDeleted         INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    sortIndex         REAL,
+
+    createdAt         INTEGER NOT NULL,
+    updatedAt         INTEGER NOT NULL,
+    deletedAt         INTEGER,
+
+    -- ---- local-only sync bookkeeping -------------------------------------
+    -- SYNCED | PENDING | SYNCING | FAILED | CONFLICT
+    syncStatus        TEXT    NOT NULL DEFAULT 'PENDING',
+    -- Bumped on EVERY local edit. Powers the compare-and-set guard that stops
+    -- an edit made during an in-flight upload from being silently discarded.
+    localRevision     INTEGER NOT NULL DEFAULT 1,
+    -- The server `version` this local copy descends from. Sent as the push
+    -- precondition; 0 means "never synced, this is a create".
+    baseVersion       INTEGER NOT NULL DEFAULT 0,
+    -- Content hash at the last successful sync. Lets the conflict resolver tell
+    -- "I didn't touch it" from "we both changed it".
+    baseContentHash   TEXT,
+    contentHash       TEXT    NOT NULL,
+    syncError         TEXT,
+    syncAttempts      INTEGER NOT NULL DEFAULT 0,
+    -- Back-link from a conflict copy to the note it diverged from.
+    conflictOfNoteId  TEXT
+);
+
+CREATE INDEX noteEntity_user_idx ON noteEntity(userId);
+CREATE INDEX noteEntity_list_idx ON noteEntity(userId, isDeleted, isArchived, isPinned, updatedAt);
+CREATE INDEX noteEntity_sync_idx ON noteEntity(userId, syncStatus);
+
+-- ---------------------------------------------------------------------------
+-- Reads
+-- ---------------------------------------------------------------------------
+
+selectById:
+SELECT * FROM noteEntity WHERE id = ?;
+
+selectByIds:
+SELECT * FROM noteEntity WHERE id IN ?;
+
+-- Active notes (not deleted, not archived). Pinned first, then by the requested
+-- ordering. Sorting is applied in Kotlin so a single query serves every sort
+-- option without string-concatenating SQL.
+selectActive:
+SELECT * FROM noteEntity
+WHERE userId = :userId AND isDeleted = 0 AND isArchived = 0;
+
+selectArchived:
+SELECT * FROM noteEntity
+WHERE userId = :userId AND isDeleted = 0 AND isArchived = 1;
+
+selectAllForUser:
+SELECT * FROM noteEntity WHERE userId = :userId;
+
+-- Notes carrying unsynced local changes, oldest edit first so the server sees
+-- them in roughly the order the user made them.
+selectDirty:
+SELECT * FROM noteEntity
+WHERE userId = :userId AND syncStatus IN ('PENDING', 'FAILED')
+ORDER BY updatedAt ASC
+LIMIT :limit;
+
+countByStatus:
+SELECT syncStatus, COUNT(*) AS total FROM noteEntity
+WHERE userId = :userId
+GROUP BY syncStatus;
+
+countConflicts:
+SELECT COUNT(*) FROM noteEntity WHERE userId = :userId AND syncStatus = 'CONFLICT';
+
+-- ---------------------------------------------------------------------------
+-- Local mutations (always bump localRevision and mark PENDING)
+-- ---------------------------------------------------------------------------
+
+insertNote:
+INSERT INTO noteEntity (
+    id, userId, title, content, contentType, color,
+    isPinned, isArchived, isDeleted, sortIndex,
+    createdAt, updatedAt, deletedAt,
+    syncStatus, localRevision, baseVersion, baseContentHash, contentHash,
+    syncError, syncAttempts, conflictOfNoteId
+) VALUES (
+    :id, :userId, :title, :content, :contentType, :color,
+    :isPinned, :isArchived, :isDeleted, :sortIndex,
+    :createdAt, :updatedAt, :deletedAt,
+    :syncStatus, :localRevision, :baseVersion, :baseContentHash, :contentHash,
+    :syncError, :syncAttempts, :conflictOfNoteId
+);
+
+updateContent:
+UPDATE noteEntity
+SET title         = :title,
+    content       = :content,
+    contentHash   = :contentHash,
+    updatedAt     = :updatedAt,
+    localRevision = localRevision + 1,
+    syncStatus    = 'PENDING',
+    syncError     = NULL
+WHERE id = :id;
+
+updatePinned:
+UPDATE noteEntity
+SET isPinned      = :isPinned,
+    updatedAt     = :updatedAt,
+    localRevision = localRevision + 1,
+    syncStatus    = 'PENDING',
+    syncError     = NULL
+WHERE id = :id;
+
+updateArchived:
+UPDATE noteEntity
+SET isArchived    = :isArchived,
+    updatedAt     = :updatedAt,
+    localRevision = localRevision + 1,
+    syncStatus    = 'PENDING',
+    syncError     = NULL
+WHERE id = :id;
+
+-- Soft delete. The row survives as a tombstone until the server confirms it.
+softDelete:
+UPDATE noteEntity
+SET isDeleted     = 1,
+    deletedAt     = :deletedAt,
+    updatedAt     = :updatedAt,
+    localRevision = localRevision + 1,
+    syncStatus    = 'PENDING',
+    syncError     = NULL
+WHERE id = :id;
+
+restore:
+UPDATE noteEntity
+SET isDeleted     = 0,
+    deletedAt     = NULL,
+    updatedAt     = :updatedAt,
+    localRevision = localRevision + 1,
+    syncStatus    = 'PENDING',
+    syncError     = NULL
+WHERE id = :id;
+
+-- ---------------------------------------------------------------------------
+-- Sync-engine mutations
+-- ---------------------------------------------------------------------------
+
+markSyncing:
+UPDATE noteEntity SET syncStatus = 'SYNCING'
+WHERE id = :id AND localRevision = :expectedLocalRevision;
+
+-- THE GUARD. If the user edited this note while its upload was in flight,
+-- localRevision has moved on and zero rows update - the note correctly stays
+-- PENDING and is pushed again next cycle. Without this, that edit is lost.
+markSynced:
+UPDATE noteEntity
+SET syncStatus      = 'SYNCED',
+    baseVersion     = :baseVersion,
+    baseContentHash = :contentHash,
+    contentHash     = :contentHash,
+    syncError       = NULL,
+    syncAttempts    = 0
+WHERE id = :id AND localRevision = :expectedLocalRevision;
+
+markFailed:
+UPDATE noteEntity
+SET syncStatus   = 'FAILED',
+    syncError    = :error,
+    syncAttempts = syncAttempts + 1
+WHERE id = :id;
+
+markConflict:
+UPDATE noteEntity SET syncStatus = 'CONFLICT', syncError = :error WHERE id = :id;
+
+clearConflict:
+UPDATE noteEntity SET syncStatus = 'SYNCED', syncError = NULL WHERE id = :id;
+
+-- Applied when the server copy wins or when pulling remote changes. Only ever
+-- called for rows whose local state is already SYNCED - never clobbers an
+-- unsynced local edit; those go through the conflict resolver instead.
+upsertFromServer:
+INSERT OR REPLACE INTO noteEntity (
+    id, userId, title, content, contentType, color,
+    isPinned, isArchived, isDeleted, sortIndex,
+    createdAt, updatedAt, deletedAt,
+    syncStatus, localRevision, baseVersion, baseContentHash, contentHash,
+    syncError, syncAttempts, conflictOfNoteId
+) VALUES (
+    :id, :userId, :title, :content, :contentType, :color,
+    :isPinned, :isArchived, :isDeleted, :sortIndex,
+    :createdAt, :updatedAt, :deletedAt,
+    'SYNCED', :localRevision, :baseVersion, :contentHash, :contentHash,
+    NULL, 0, :conflictOfNoteId
+);
+
+selectSyncStateById:
+SELECT id, localRevision, syncStatus, baseVersion, baseContentHash, contentHash
+FROM noteEntity WHERE id = ?;
+
+-- ---------------------------------------------------------------------------
+-- Maintenance
+-- ---------------------------------------------------------------------------
+
+-- Drop confirmed tombstones the server has also purged.
+purgeSyncedTombstones:
+DELETE FROM noteEntity
+WHERE userId = :userId AND isDeleted = 1 AND syncStatus = 'SYNCED' AND deletedAt < :olderThan;
+
+-- Full-resync path: wipe everything the server owns, keep unsynced local work.
+deleteSyncedForUser:
+DELETE FROM noteEntity WHERE userId = :userId AND syncStatus = 'SYNCED';
+
+deleteAllForUser:
+DELETE FROM noteEntity WHERE userId = :userId;
+
+deleteAll:
+DELETE FROM noteEntity;

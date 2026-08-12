@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: notes-server
+
+  datasource:
+    # 127.0.0.1 rather than localhost: on Windows, localhost resolves to ::1
+    # first, and this PostgreSQL install rejects SCRAM auth over IPv6 while
+    # accepting it over IPv4. Pinning to IPv4 avoids a confusing
+    # "password authentication failed" that has nothing to do with the password.
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/notes}
+    username: ${DB_USER:notes}
+    password: ${DB_PASSWORD:notes}
+    hikari:
+      maximum-pool-size: 10
+      pool-name: notes-pool
+
+  jpa:
+    open-in-view: false          # fail loudly rather than lazy-load in the view layer
+    hibernate:
+      ddl-auto: validate         # Flyway owns the schema; Hibernate only verifies it
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never       # error bodies come from GlobalExceptionHandler only
+    include-stacktrace: never
+
+notes:
+  auth:
+    # MUST be overridden in production. Minimum 32 bytes for HS256.
+    jwt-secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-0123456789abcdef}
+    jwt-issuer: notes-system
+    access-token-ttl: 15m
+    refresh-token-ttl: 60d
+    # Desktop cannot store a refresh token securely (no OS keychain in pure JVM),
+    # so its tokens live a fraction as long. See docs/ARCHITECTURE.md L1.
+    desktop-refresh-token-ttl: 7d
+    password-reset-ttl: 30m
+    bcrypt-strength: 12
+  rate-limit:
+    login-attempts-per-minute: 5
+    forgot-password-per-hour: 3
+  sync:
+    max-push-batch: 500
+    max-pull-page: 200
+    max-note-content-bytes: 524288
+    tombstone-retention-days: 90
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    com.arunrk.notes: DEBUG
+    org.springframework.security: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

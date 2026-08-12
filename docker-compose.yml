@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: notes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: notes
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: notes
+      # Deterministic collation so ORDER BY behaves identically across machines.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - notes-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: notes-pgadmin
+    restart: unless-stopped
+    profiles: ["tools"]          # docker compose --profile tools up
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@notes.local
+      PGADMIN_DEFAULT_PASSWORD: notes
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  notes-pgdata:

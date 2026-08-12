@@ -1,0 +1,60 @@
+[versions]
+# Spring Boot 3.5.x rather than 4.x: the 3.5 line is mature and its Spring
+# Security 6 configuration API is the well-trodden path. Pairing a brand-new
+# Boot 4 / Spring Framework 7 with Kotlin 2.4 would compound toolchain risk for
+# no functional gain here.
+springBoot = "3.5.16"
+springDependencyManagement = "1.1.7"
+kotlin = "2.4.10"
+java = "21"
+
+# Versions NOT managed by the Spring Boot BOM
+bucket4j = "8.10.1"
+jjwt = "0.12.7"
+mockk = "1.14.11"
+springdoc = "2.8.17"
+springmockk = "4.0.2"
+
+[libraries]
+# --- Spring (versions supplied by the Boot BOM) ---
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-dataJpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-mail = { module = "org.springframework.boot:spring-boot-starter-mail" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
+spring-boot-configurationProcessor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
+
+# --- Kotlin / Jackson ---
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+jackson-moduleKotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
+
+# --- Persistence ---
+flyway-core = { module = "org.flywaydb:flyway-core" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+postgresql = { module = "org.postgresql:postgresql" }
+
+# --- Security ---
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+bucket4j-core = { module = "com.bucket4j:bucket4j-core", version.ref = "bucket4j" }
+
+# --- Docs ---
+springdoc-openapi = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+
+# --- Test ---
+kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5", version.ref = "kotlin" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
+
+[plugins]
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinSpring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlinJpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
+springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }
+springDependencyManagement = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }

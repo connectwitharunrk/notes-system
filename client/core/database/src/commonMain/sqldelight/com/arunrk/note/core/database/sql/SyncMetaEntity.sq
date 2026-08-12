@@ -1,0 +1,46 @@
+-- ---------------------------------------------------------------------------
+-- Per-user synchronisation cursor.
+--
+-- Keyed by userId rather than being a singleton: if a second account signs in
+-- on this device, it must not inherit the previous user's cursor.
+--
+-- deviceId deliberately lives in preferences, not here - it is a property of
+-- the installation, not of any user.
+-- ---------------------------------------------------------------------------
+CREATE TABLE syncMetaEntity (
+    userId               TEXT    NOT NULL PRIMARY KEY,
+    -- Highest change_seq successfully pulled. Persisted after EVERY page so an
+    -- interrupted pull resumes instead of restarting.
+    lastPullCursor       INTEGER NOT NULL DEFAULT 0,
+    lastSuccessfulSyncAt INTEGER,
+    lastSyncError        TEXT,
+    lastFullResyncAt     INTEGER
+);
+
+selectByUser:
+SELECT * FROM syncMetaEntity WHERE userId = ?;
+
+ensureRow:
+INSERT OR IGNORE INTO syncMetaEntity (userId, lastPullCursor) VALUES (:userId, 0);
+
+updateCursor:
+UPDATE syncMetaEntity SET lastPullCursor = :cursor WHERE userId = :userId;
+
+markSyncSucceeded:
+UPDATE syncMetaEntity
+SET lastSuccessfulSyncAt = :at, lastSyncError = NULL
+WHERE userId = :userId;
+
+markSyncFailed:
+UPDATE syncMetaEntity SET lastSyncError = :error WHERE userId = :userId;
+
+markFullResync:
+UPDATE syncMetaEntity
+SET lastPullCursor = 0, lastFullResyncAt = :at
+WHERE userId = :userId;
+
+deleteForUser:
+DELETE FROM syncMetaEntity WHERE userId = ?;
+
+deleteAll:
+DELETE FROM syncMetaEntity;
