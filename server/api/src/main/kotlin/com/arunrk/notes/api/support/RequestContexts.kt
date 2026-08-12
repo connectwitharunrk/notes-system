@@ -25,6 +25,9 @@ object RequestContexts {
         ipAddress = clientIp(request),
     )
 
+    fun platform(request: HttpServletRequest): DevicePlatform =
+        DevicePlatform.parse(request.getHeader(HEADER_DEVICE_PLATFORM))
+
     fun deviceId(request: HttpServletRequest): UUID? =
         request.getHeader(HEADER_DEVICE_ID)
             ?.trim()

@@ -3,14 +3,32 @@ package com.arunrk.notes.config
 import com.arunrk.notes.common.time.SystemTimeProvider
 import com.arunrk.notes.common.time.TimeProvider
 import com.arunrk.notes.domain.policy.AuthPolicy
+import com.arunrk.notes.domain.policy.NotePolicy
 import com.arunrk.notes.domain.port.AccessTokenIssuer
+import com.arunrk.notes.domain.port.ChangeSequencer
 import com.arunrk.notes.domain.port.DeviceRepository
 import com.arunrk.notes.domain.port.EmailSender
+import com.arunrk.notes.domain.port.NoteRepository
 import com.arunrk.notes.domain.port.PasswordHasher
 import com.arunrk.notes.domain.port.PasswordResetTokenRepository
 import com.arunrk.notes.domain.port.RefreshTokenRepository
 import com.arunrk.notes.domain.port.Transactor
 import com.arunrk.notes.domain.port.UserRepository
+import com.arunrk.notes.domain.usecase.device.DeviceResolver
+import com.arunrk.notes.domain.usecase.note.ArchiveNoteUseCase
+import com.arunrk.notes.domain.usecase.note.CreateNoteUseCase
+import com.arunrk.notes.domain.usecase.note.DeleteNoteUseCase
+import com.arunrk.notes.domain.usecase.note.GetNoteUseCase
+import com.arunrk.notes.domain.usecase.note.ListNotesUseCase
+import com.arunrk.notes.domain.usecase.note.PinNoteUseCase
+import com.arunrk.notes.domain.usecase.note.RestoreNoteUseCase
+import com.arunrk.notes.domain.usecase.note.SearchNotesUseCase
+import com.arunrk.notes.domain.usecase.note.UpdateNoteUseCase
+import com.arunrk.notes.domain.usecase.sync.ConflictResolver
+import com.arunrk.notes.domain.usecase.sync.PullChangesUseCase
+import com.arunrk.notes.domain.usecase.sync.PurgeTombstonesUseCase
+import com.arunrk.notes.domain.usecase.sync.PushChangesUseCase
+import com.arunrk.notes.domain.usecase.sync.SyncStatusUseCase
 import com.arunrk.notes.domain.usecase.auth.ChangePasswordUseCase
 import com.arunrk.notes.domain.usecase.auth.LoginUseCase
 import com.arunrk.notes.domain.usecase.auth.LogoutAllUseCase
@@ -44,6 +62,7 @@ import org.springframework.transaction.support.TransactionTemplate
     AuthProperties::class,
     RateLimitProperties::class,
     MailProperties::class,
+    SyncProperties::class,
 )
 class DomainConfig {
 
@@ -147,4 +166,123 @@ class DomainConfig {
     @Bean
     fun updateProfileUseCase(users: UserRepository, time: TimeProvider) =
         UpdateProfileUseCase(users, time)
+
+    // ---- notes ------------------------------------------------------------
+
+    @Bean
+    fun notePolicy(properties: SyncProperties) = NotePolicy(
+        maxTitleLength = properties.maxTitleLength,
+        maxContentBytes = properties.maxNoteContentBytes,
+        maxPushBatch = properties.maxPushBatch,
+        maxPullPage = properties.maxPullPage,
+        tombstoneRetentionDays = properties.tombstoneRetentionDays,
+    )
+
+    @Bean
+    fun deviceResolver(devices: DeviceRepository, time: TimeProvider) = DeviceResolver(devices, time)
+
+    @Bean
+    fun createNoteUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+        policy: NotePolicy,
+    ) = CreateNoteUseCase(notes, sequencer, deviceResolver, transactor, time, policy)
+
+    @Bean
+    fun updateNoteUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+        policy: NotePolicy,
+    ) = UpdateNoteUseCase(notes, sequencer, deviceResolver, transactor, time, policy)
+
+    @Bean
+    fun deleteNoteUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+    ) = DeleteNoteUseCase(notes, sequencer, deviceResolver, transactor, time)
+
+    @Bean
+    fun restoreNoteUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+    ) = RestoreNoteUseCase(notes, sequencer, deviceResolver, transactor, time)
+
+    @Bean
+    fun archiveNoteUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+    ) = ArchiveNoteUseCase(notes, sequencer, deviceResolver, transactor, time)
+
+    @Bean
+    fun pinNoteUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+    ) = PinNoteUseCase(notes, sequencer, deviceResolver, transactor, time)
+
+    @Bean
+    fun getNoteUseCase(notes: NoteRepository) = GetNoteUseCase(notes)
+
+    @Bean
+    fun listNotesUseCase(notes: NoteRepository) = ListNotesUseCase(notes)
+
+    @Bean
+    fun searchNotesUseCase(notes: NoteRepository) = SearchNotesUseCase(notes)
+
+    // ---- synchronisation --------------------------------------------------
+
+    @Bean
+    fun conflictResolver() = ConflictResolver()
+
+    @Bean
+    fun pushChangesUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        conflictResolver: ConflictResolver,
+        deviceResolver: DeviceResolver,
+        transactor: Transactor,
+        time: TimeProvider,
+        policy: NotePolicy,
+    ) = PushChangesUseCase(notes, sequencer, conflictResolver, deviceResolver, transactor, time, policy)
+
+    @Bean
+    fun pullChangesUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        time: TimeProvider,
+        policy: NotePolicy,
+    ) = PullChangesUseCase(notes, sequencer, time, policy)
+
+    @Bean
+    fun syncStatusUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        time: TimeProvider,
+    ) = SyncStatusUseCase(notes, sequencer, time)
+
+    @Bean
+    fun purgeTombstonesUseCase(
+        notes: NoteRepository,
+        sequencer: ChangeSequencer,
+        transactor: Transactor,
+        time: TimeProvider,
+        policy: NotePolicy,
+    ) = PurgeTombstonesUseCase(notes, sequencer, transactor, time, policy)
 }
