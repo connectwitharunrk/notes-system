@@ -1,49 +1,45 @@
 package com.arunrk.note
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import org.jetbrains.compose.resources.painterResource
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.arunrk.note.core.datastore.AppPreferences
+import com.arunrk.note.core.datastore.ThemeMode
+import com.arunrk.note.core.designsystem.layout.LocalWindowSize
+import com.arunrk.note.core.designsystem.layout.WindowSize
+import com.arunrk.note.core.designsystem.theme.AppThemeMode
+import com.arunrk.note.core.designsystem.theme.NoteTheme
+import com.arunrk.note.ui.CoreStatusScreen
+import org.koin.compose.koinInject
 
-import note.shared.generated.resources.Res
-import note.shared.generated.resources.compose_multiplatform
-
+/**
+ * Root composable.
+ *
+ * Window size is measured here with [BoxWithConstraints] and published through a
+ * CompositionLocal, so every screen adapts from one measurement rather than each
+ * querying the platform separately. Using the measured width also means a
+ * list-detail pane can re-derive its own size class for its slice of the window.
+ */
 @Composable
-@Preview
 fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
-                }
+    val preferences: AppPreferences = koinInject()
+    val themeMode by preferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+
+    NoteTheme(themeMode = themeMode.toAppThemeMode()) {
+        BoxWithConstraints {
+            CompositionLocalProvider(
+                LocalWindowSize provides WindowSize.fromWidth(maxWidth),
+            ) {
+                CoreStatusScreen()
             }
         }
     }
+}
+
+private fun ThemeMode.toAppThemeMode(): AppThemeMode = when (this) {
+    ThemeMode.LIGHT -> AppThemeMode.LIGHT
+    ThemeMode.DARK -> AppThemeMode.DARK
+    ThemeMode.SYSTEM -> AppThemeMode.SYSTEM
 }

@@ -72,14 +72,16 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.navigation.compose)
-            implementation(libs.koin.core)
+            // api, not implementation: initKoin() is this module's public entry
+            // point and its signature exposes Koin types to the app shells.
+            api(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.composeViewmodel)
         }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
-            implementation(libs.koin.android)
+            api(libs.koin.android)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
