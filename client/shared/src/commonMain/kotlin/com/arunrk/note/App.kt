@@ -64,9 +64,9 @@ private fun RootContent(
 
             AuthState.Unauthenticated -> AuthNavHost()
 
-            is AuthState.Authenticated -> MainNavHost(
-                onSignOut = sessionViewModel::signOutClicked,
-            )
+            // Sign-out now lives on the settings screen, which owns it through
+            // SignOutUseCase - the root no longer needs to thread a callback down.
+            is AuthState.Authenticated -> MainNavHost()
         }
     }
 }

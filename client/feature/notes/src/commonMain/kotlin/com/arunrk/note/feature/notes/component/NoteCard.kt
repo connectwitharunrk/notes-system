@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.arunrk.note.core.designsystem.icon.NoteIcons
+import com.arunrk.note.core.designsystem.format.relativeTime
 import com.arunrk.note.core.designsystem.theme.Spacing
 import com.arunrk.note.domain.model.Note
 

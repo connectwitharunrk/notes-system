@@ -37,7 +37,7 @@ import com.arunrk.note.core.designsystem.icon.NoteIcons
 import com.arunrk.note.core.designsystem.theme.Spacing
 import com.arunrk.note.domain.model.SyncStatus
 import com.arunrk.note.feature.notes.component.SyncStatusBadge
-import com.arunrk.note.feature.notes.component.relativeTime
+import com.arunrk.note.core.designsystem.format.relativeTime
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -46,7 +46,14 @@ fun NoteEditorScreen(
     noteId: String?,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: NoteEditorViewModel = koinViewModel { parametersOf(noteId) },
+    /**
+     * Distinguishes editors within one ViewModelStoreOwner. In the two-pane
+     * layout the editor stays on screen while the selection changes, and without
+     * a distinct key Koin returns the previous note's ViewModel - so the pane
+     * would show the wrong note's text.
+     */
+    viewModelKey: String = noteId ?: "new-note",
+    viewModel: NoteEditorViewModel = koinViewModel(key = viewModelKey) { parametersOf(noteId) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
