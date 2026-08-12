@@ -3,6 +3,10 @@ package com.arunrk.note.di
 import com.arunrk.note.core.common.platform.PlatformContext
 import com.arunrk.note.domain.repository.NoteRepository
 import com.arunrk.note.domain.repository.PreferencesRepository
+import com.arunrk.note.domain.repository.SyncManager
+import com.arunrk.note.feature.settings.SettingsViewModel
+import com.arunrk.note.feature.settings.password.ChangePasswordViewModel
+import com.arunrk.note.feature.settings.profile.ProfileViewModel
 import com.arunrk.note.feature.auth.forgotpassword.ForgotPasswordViewModel
 import com.arunrk.note.feature.auth.login.LoginViewModel
 import com.arunrk.note.feature.auth.register.RegisterViewModel
@@ -53,6 +57,19 @@ class FeatureGraphTest {
     fun `the note editor resolves for an existing note and for a new one`() {
         assertNotNull(koin.get<NoteEditorViewModel> { parametersOf("some-note-id") })
         assertNotNull(koin.get<NoteEditorViewModel> { parametersOf(null) })
+    }
+
+    @Test
+    fun `settings view models resolve`() {
+        assertNotNull(koin.get<SettingsViewModel>())
+        assertNotNull(koin.get<ProfileViewModel>())
+        assertNotNull(koin.get<ChangePasswordViewModel>())
+    }
+
+    @Test
+    fun `the sync manager resolves as a singleton`() {
+        val manager = koin.get<SyncManager>()
+        assertTrue(manager === koin.get<SyncManager>())
     }
 
     @Test

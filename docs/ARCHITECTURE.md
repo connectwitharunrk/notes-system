@@ -500,8 +500,17 @@ RootNavHost
 | Medium `600–839` | small tablets, iPad portrait | navigation **rail** · single pane · 2 columns |
 | Expanded `≥840` | tablets landscape, iPad Pro, desktop | rail (drawer ≥1240) · **list-detail two-pane**, editor beside the list · 3–4 columns |
 
-Driven by one `NoteScaffold` reading `WindowSizeClass`, so there is exactly one
-navigation implementation across all five form factors.
+Window size is measured once in `App()` with `BoxWithConstraints` and published
+through `LocalWindowSize`, so every screen adapts from one measurement rather
+than each querying the platform. The grid column count re-measures from the
+*pane's* own width, not the window's, so the list inside a two-pane layout sizes
+itself correctly instead of inheriting the window's verdict.
+
+`NotesDestination` picks the shape: two panes when `supportsTwoPane`, otherwise
+the editor is a separate full-screen destination. In two-pane mode the editor
+stays mounted while the selection changes, so it is given an explicit
+`viewModelKey` — without one, Koin returns the previous note's ViewModel and the
+pane shows the wrong note's text.
 
 ---
 

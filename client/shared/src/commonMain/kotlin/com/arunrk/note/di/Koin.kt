@@ -3,6 +3,7 @@ package com.arunrk.note.di
 import com.arunrk.note.core.common.platform.PlatformContext
 import com.arunrk.note.feature.auth.di.authFeatureModule
 import com.arunrk.note.feature.notes.di.notesFeatureModule
+import com.arunrk.note.feature.settings.di.settingsFeatureModule
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 import org.koin.dsl.KoinAppDeclaration
@@ -23,5 +24,6 @@ fun initKoin(
         domainModule,
         authFeatureModule,
         notesFeatureModule,
+        settingsFeatureModule,
     )
 }

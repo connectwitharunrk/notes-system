@@ -24,14 +24,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.arunrk.note.core.common.navigation.ArchivedRoute
+import com.arunrk.note.core.common.navigation.ChangePasswordRoute
 import com.arunrk.note.core.common.navigation.NoteEditorRoute
 import com.arunrk.note.core.common.navigation.NotesRoute
+import com.arunrk.note.core.common.navigation.ProfileRoute
 import com.arunrk.note.core.common.navigation.SettingsRoute
 import com.arunrk.note.core.designsystem.icon.NoteIcons
 import com.arunrk.note.core.designsystem.layout.LocalWindowSize
+import com.arunrk.note.feature.notes.NotesDestination
 import com.arunrk.note.feature.notes.editor.NoteEditorScreen
-import com.arunrk.note.feature.notes.list.NotesListScreen
-import com.arunrk.note.ui.SettingsPlaceholder
+import com.arunrk.note.feature.settings.SettingsScreen
+import com.arunrk.note.feature.settings.password.ChangePasswordScreen
+import com.arunrk.note.feature.settings.profile.ProfileScreen
 
 private data class TopLevelItem(
     val route: Any,
@@ -48,7 +52,6 @@ private data class TopLevelItem(
  */
 @Composable
 fun MainNavHost(
-    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
@@ -109,21 +112,38 @@ fun MainNavHost(
                 NavHost(navController = navController, startDestination = NotesRoute) {
 
                     composable<NotesRoute> {
-                        NotesListScreen(
+                        NotesDestination(
                             showArchived = false,
-                            onOpenNote = { noteId -> navController.navigate(NoteEditorRoute(noteId)) },
+                            onOpenNoteFullScreen = { noteId ->
+                                navController.navigate(NoteEditorRoute(noteId))
+                            },
                         )
                     }
 
                     composable<ArchivedRoute> {
-                        NotesListScreen(
+                        NotesDestination(
                             showArchived = true,
-                            onOpenNote = { noteId -> navController.navigate(NoteEditorRoute(noteId)) },
+                            onOpenNoteFullScreen = { noteId ->
+                                navController.navigate(NoteEditorRoute(noteId))
+                            },
                         )
                     }
 
                     composable<SettingsRoute> {
-                        SettingsPlaceholder(onSignOut = onSignOut)
+                        SettingsScreen(
+                            onNavigateToProfile = { navController.navigate(ProfileRoute) },
+                            onNavigateToChangePassword = {
+                                navController.navigate(ChangePasswordRoute)
+                            },
+                        )
+                    }
+
+                    composable<ProfileRoute> {
+                        ProfileScreen(onNavigateBack = { navController.popBackStack() })
+                    }
+
+                    composable<ChangePasswordRoute> {
+                        ChangePasswordScreen(onNavigateBack = { navController.popBackStack() })
                     }
 
                     composable<NoteEditorRoute> { entry ->
