@@ -405,11 +405,24 @@ again next cycle. Without this guard that edit is silently and permanently lost.
 | Trigger | Behaviour |
 |---|---|
 | App start / foreground | immediate |
-| Connectivity regained | immediate (`ConnectivityObserver` expect/actual) |
+| Connectivity regained | immediate; also resets the backoff |
 | Local mutation | debounced 3 s |
 | Periodic | every 15 min while foregrounded |
 | Manual (Settings) | immediate |
-| Login | full pull from cursor 0 |
+| Sign-in | immediate |
+
+**The local-change trigger is derived, not announced.** A local edit marks its
+note `PENDING`, so a rise in the pending count *is* the signal that something
+needs pushing. `DefaultSyncManager` watches that count rather than having every
+use case remember to call `requestSync` — which keeps the domain free of any
+dependency on the sync engine and makes it impossible to add a write path that
+forgets to trigger a sync.
+
+**Sign-out pushes before it wipes.** `SignOutUseCase` attempts a final sync,
+then stops the engine, then clears local notes, then ends the session. Wiping
+first would destroy anything written since the last sync — and signing out is
+exactly when the user stops being able to get it back. The push is best effort:
+refusing to sign someone out because the network is down is worse.
 
 ### Status surface
 
