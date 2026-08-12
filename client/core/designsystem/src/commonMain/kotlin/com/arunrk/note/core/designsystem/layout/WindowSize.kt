@@ -1,6 +1,5 @@
 package com.arunrk.note.core.designsystem.layout
 
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -52,8 +51,11 @@ val LocalWindowSize = staticCompositionLocalOf { WindowSize.COMPACT }
 /**
  * Column count for the note grid. Capped at four: beyond that, cards get narrow
  * enough that titles wrap and the grid stops being scannable.
+ *
+ * A plain function, not a composable - it reads nothing from composition, and
+ * marking it @Composable would stop it being callable from a lambda inside a
+ * layout builder.
  */
-@Composable
 fun noteGridColumns(windowSize: WindowSize, width: Dp): Int = when (windowSize) {
     WindowSize.COMPACT -> 1
     WindowSize.MEDIUM -> 2

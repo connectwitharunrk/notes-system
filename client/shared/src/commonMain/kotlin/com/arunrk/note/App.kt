@@ -7,16 +7,17 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.arunrk.note.core.datastore.AppPreferences
-import com.arunrk.note.core.datastore.ThemeMode
 import com.arunrk.note.core.designsystem.layout.LocalWindowSize
 import com.arunrk.note.core.designsystem.layout.WindowSize
 import com.arunrk.note.core.designsystem.theme.AppThemeMode
 import com.arunrk.note.core.designsystem.theme.NoteTheme
 import com.arunrk.note.domain.model.AuthState
+import com.arunrk.note.domain.model.ThemePreference
+import com.arunrk.note.domain.model.UserPreferences
+import com.arunrk.note.domain.repository.PreferencesRepository
 import com.arunrk.note.navigation.AuthNavHost
+import com.arunrk.note.navigation.MainNavHost
 import com.arunrk.note.session.SessionViewModel
-import com.arunrk.note.ui.SignedInPlaceholder
 import com.arunrk.note.ui.SplashScreen
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -35,10 +36,10 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun App() {
-    val preferences: AppPreferences = koinInject()
-    val themeMode by preferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+    val preferences: PreferencesRepository = koinInject()
+    val userPreferences by preferences.preferences.collectAsState(initial = UserPreferences())
 
-    NoteTheme(themeMode = themeMode.toAppThemeMode()) {
+    NoteTheme(themeMode = userPreferences.theme.toAppThemeMode()) {
         BoxWithConstraints {
             CompositionLocalProvider(
                 LocalWindowSize provides WindowSize.fromWidth(maxWidth),
@@ -63,16 +64,15 @@ private fun RootContent(
 
             AuthState.Unauthenticated -> AuthNavHost()
 
-            is AuthState.Authenticated -> SignedInPlaceholder(
-                user = state.user,
+            is AuthState.Authenticated -> MainNavHost(
                 onSignOut = sessionViewModel::signOut,
             )
         }
     }
 }
 
-private fun ThemeMode.toAppThemeMode(): AppThemeMode = when (this) {
-    ThemeMode.LIGHT -> AppThemeMode.LIGHT
-    ThemeMode.DARK -> AppThemeMode.DARK
-    ThemeMode.SYSTEM -> AppThemeMode.SYSTEM
+private fun ThemePreference.toAppThemeMode(): AppThemeMode = when (this) {
+    ThemePreference.LIGHT -> AppThemeMode.LIGHT
+    ThemePreference.DARK -> AppThemeMode.DARK
+    ThemePreference.SYSTEM -> AppThemeMode.SYSTEM
 }

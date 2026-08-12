@@ -1,7 +1,22 @@
 package com.arunrk.note.di
 
 import com.arunrk.note.data.auth.AuthRepositoryImpl
+import com.arunrk.note.data.note.NoteRepositoryImpl
+import com.arunrk.note.data.preferences.PreferencesRepositoryImpl
 import com.arunrk.note.domain.repository.AuthRepository
+import com.arunrk.note.domain.repository.NoteRepository
+import com.arunrk.note.domain.repository.PreferencesRepository
+import com.arunrk.note.domain.usecase.note.CreateNoteUseCase
+import com.arunrk.note.domain.usecase.note.DeleteNoteUseCase
+import com.arunrk.note.domain.usecase.note.DiscardBlankNoteUseCase
+import com.arunrk.note.domain.usecase.note.GetNoteUseCase
+import com.arunrk.note.domain.usecase.note.ObserveNoteUseCase
+import com.arunrk.note.domain.usecase.note.ObserveNotesUseCase
+import com.arunrk.note.domain.usecase.note.ObserveSyncCountsUseCase
+import com.arunrk.note.domain.usecase.note.RestoreNoteUseCase
+import com.arunrk.note.domain.usecase.note.SetArchivedUseCase
+import com.arunrk.note.domain.usecase.note.TogglePinUseCase
+import com.arunrk.note.domain.usecase.note.UpdateNoteUseCase
 import com.arunrk.note.domain.usecase.auth.ChangePasswordUseCase
 import com.arunrk.note.domain.usecase.auth.LoginUseCase
 import com.arunrk.note.domain.usecase.auth.LogoutUseCase
@@ -24,6 +39,8 @@ import org.koin.dsl.module
  */
 val dataModule: Module = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get(), get(), get()) }
+    single<NoteRepository> { NoteRepositoryImpl(get(), get()) }
+    single<PreferencesRepository> { PreferencesRepositoryImpl(get()) }
 }
 
 val domainModule: Module = module {
@@ -35,6 +52,20 @@ val domainModule: Module = module {
     factory { RequestPasswordResetUseCase(get()) }
     factory { ChangePasswordUseCase(get()) }
     factory { UpdateProfileUseCase(get()) }
+
+    // ---- notes ------------------------------------------------------------
+
+    factory { ObserveNotesUseCase(get()) }
+    factory { ObserveNoteUseCase(get()) }
+    factory { ObserveSyncCountsUseCase(get()) }
+    factory { GetNoteUseCase(get()) }
+    factory { CreateNoteUseCase(get()) }
+    factory { UpdateNoteUseCase(get()) }
+    factory { TogglePinUseCase(get()) }
+    factory { SetArchivedUseCase(get()) }
+    factory { DeleteNoteUseCase(get()) }
+    factory { RestoreNoteUseCase(get()) }
+    factory { DiscardBlankNoteUseCase(get()) }
 
     viewModelOf(::SessionViewModel)
 }
