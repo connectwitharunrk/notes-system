@@ -245,7 +245,13 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHENTICATED` 401 · `INVALID_CREDENTIALS` 
     "isArchived": false,
     "isDeleted": false,
     "clientCreatedAt": "2026-08-12T10:00:00Z",
-    "clientUpdatedAt": "2026-08-12T10:05:00Z"
+    "clientUpdatedAt": "2026-08-12T10:05:00Z",
+    // Content hash at the client's last successful sync. Strongly recommended:
+    // without it the server cannot tell "I only toggled a flag, keep your text"
+    // from "we both rewrote this", and must assume the latter — producing a
+    // conflict copy where a clean merge was possible. Omitting it is safe but
+    // noisy. See §11 tiers 3 and 4.
+    "baseContentHash": "a3f1…"
   }]
 }
 ```
@@ -300,11 +306,13 @@ This was a real bug, caught only by the HTTP verification run: the unit test
 passed because the in-memory `Transactor` fake did not roll back. The fake now
 does (`RollingBackTransactor`).
 
-**Refresh registers the calling device.** The new refresh token carries a
-`device_id` foreign key, so an unrecognised device id (reinstall, restored
-backup, a device the user removed) would fail the insert with a constraint
-violation surfaced as a 500. Refresh upserts the device first, which also keeps
-`last_seen_at` current.
+**Every write path registers the calling device.** `refresh_tokens.device_id`
+and `notes.last_modified_by` are both foreign keys into `devices`, so an
+unrecognised device id (reinstall, restored backup, a second device that has only
+ever synced and never logged in) would fail the insert with a constraint
+violation surfaced as a 500. `DeviceResolver` upserts the device before any such
+write, which also keeps `last_seen_at` current. Both instances of this bug were
+found only by running the API, never by unit tests.
 
 Client session restore on app start:
 
@@ -408,14 +416,27 @@ A global banner appears on the Notes screen only when offline or `FAILED > 0`.
 Detection: push carries `baseVersion`; if it differs from the stored `version`, conflict.
 First matching tier wins.
 
-| Tier | Condition | Outcome |
-|---|---|---|
-| 1 Identical | `clientHash == serverHash` | fast-forward client to server version — not a real conflict |
-| 2 Client unchanged | `clientHash == clientBaseHash` | server content wins; client's pin/archive merge in |
-| 3 Server unchanged | `serverHash == clientBaseHash` | client wins cleanly |
-| 4 Metadata-only | title+content identical, flags differ | `pinned = a OR b`; `archived` = most recent change |
-| 5 Delete vs edit | one deleted, other edited content | **edit wins, note is undeleted** — re-deleting costs one tap, recovering lost text costs everything |
-| 6 True divergence | both changed content from a common base | **conflict copy**: server stays canonical, client's version becomes a new note `"<Title> (conflict copy — <Device>, <time>)"` with `conflict_of` set. Both survive. |
+As implemented in `ConflictResolver`, in evaluation order. Tier 4 of the original
+plan (metadata-only) collapsed into tier 1: identical content *is* the
+metadata-only case, so it is handled by one flag merge rather than two rungs.
+
+| Rung | Condition | Outcome | `resolution` |
+|---|---|---|---|
+| T0 | both sides deleted | converge, nothing written | `BOTH_DELETED` |
+| T1 | `clientHash == serverHash` | merge flags only; if the merge equals what the server already holds, nothing is written | `METADATA_MERGED` / `IDENTICAL` |
+| T2 | one side deleted, the other edited | **edit wins, note is undeleted** | `EDIT_WINS_OVER_DELETE` |
+| T2b | the deleting side is also the one that edited | delete stands | `DELETE_APPLIED` |
+| T3 | `clientHash == baseHash` | server text wins, client's flags merge in | `SERVER_CONTENT_WINS` |
+| T4 | `serverHash == baseHash` | client text wins cleanly | `CLIENT_WINS` |
+| T5 | both changed content from a common base | **conflict copy**: server stays canonical, client's version becomes a new note titled `"<Title> (conflict copy)"` with `conflict_of` set. Both survive. | `CONFLICT_COPY_CREATED` |
+
+Flag merge: `pinned` is a union (cheap, reversible, and losing a pin is worse
+than gaining one); `archived` and `deleted` fall to whichever device reported the
+later edit. That last rule leans on untrusted client clocks and is acknowledged
+as weak — tolerable only because no text is at stake.
+
+A missing `baseContentHash` is treated as "the client edited", which biases
+towards a conflict copy (recoverable) rather than an overwrite (not).
 
 Pure last-writer-wins on `updated_at` is the standard shortcut and is quietly
 destructive: a device with a 4-minute-fast clock wins every race and the loser's
