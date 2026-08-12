@@ -7,10 +7,13 @@ import com.arunrk.note.core.common.log.Log
 import com.arunrk.note.core.network.dto.ErrorEnvelopeDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.network.sockets.ConnectTimeoutException
+import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
+import kotlinx.io.IOException
 
 /**
  * Runs a request and turns every outcome into an [Outcome].
@@ -46,14 +49,25 @@ suspend inline fun <reified T> executeRequest(
 } catch (e: HttpRequestTimeoutException) {
     monitor.reportUnreachable()
     Outcome.Failure(AppError.Timeout)
-} catch (e: Exception) {
-    // Anything left is a transport-level failure: DNS, refused connection,
-    // dropped socket, TLS. From the user's point of view that is "offline".
-    // The tag is a literal because a public inline function cannot read a
-    // private top-level constant.
-    Log.w("Api", "Request failed: ${e::class.simpleName}", e)
+} catch (e: ConnectTimeoutException) {
+    monitor.reportUnreachable()
+    Outcome.Failure(AppError.Timeout)
+} catch (e: SocketTimeoutException) {
+    monitor.reportUnreachable()
+    Outcome.Failure(AppError.Timeout)
+} catch (e: IOException) {
+    // Genuine transport failure: DNS, refused connection, dropped socket, TLS.
+    // From the user's point of view that is "offline".
+    Log.w("Api", "Transport failure: ${e::class.simpleName}", e)
     monitor.reportUnreachable()
     Outcome.Failure(AppError.Offline)
+} catch (e: Exception) {
+    // NOT offline. Reporting a local storage failure, a serialization mismatch
+    // or an outright bug as "you're offline" tells the user to check their wifi
+    // for a problem their network cannot fix, and hides the real fault from us.
+    // The network state is deliberately left untouched here.
+    Log.e("Api", "Unexpected failure: ${e::class.simpleName}", e)
+    Outcome.Failure(AppError.Unknown(e.message ?: "Unexpected error", e))
 }
 
 /**

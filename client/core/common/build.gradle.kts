@@ -23,11 +23,14 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kotlinx.coroutinesCore)
+            api(libs.kotlinx.coroutinesCore)
             api(libs.kotlinx.datetime)
             api(libs.kotlinx.serializationJson)
             implementation(libs.okio)
             api(libs.kermit)
+            // The MVI base class lives here so every feature module inherits the
+            // same state/intent/effect contract without depending on each other.
+            api(libs.androidx.lifecycle.viewmodel)
         }
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutinesAndroid)

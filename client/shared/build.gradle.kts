@@ -94,3 +94,16 @@ kotlin {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
+
+/**
+ * One JVM per test class.
+ *
+ * DataStore permits exactly one instance per file per process and keeps that
+ * registration for the process lifetime, so a second test class starting the
+ * Koin graph over the same preferences file fails with "multiple DataStores
+ * active". Forking isolates them rather than papering over a constraint that is
+ * correct in production, where there is only ever one graph.
+ */
+tasks.withType<Test>().configureEach {
+    setForkEvery(1)
+}

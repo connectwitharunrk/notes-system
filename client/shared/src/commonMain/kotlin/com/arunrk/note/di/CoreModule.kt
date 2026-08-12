@@ -14,6 +14,7 @@ import com.arunrk.note.core.datastore.SecureStorage
 import com.arunrk.note.core.datastore.createDataStore
 import com.arunrk.note.core.datastore.createSecureStorage
 import com.arunrk.note.core.network.ApiConfig
+import com.arunrk.note.core.network.AuthSessionInvalidator
 import com.arunrk.note.core.network.TokenStore
 import com.arunrk.note.core.network.api.AuthApi
 import com.arunrk.note.core.network.api.NoteApi
@@ -67,6 +68,7 @@ fun coreModule(context: PlatformContext, apiConfig: ApiConfig): Module = module 
 
     single<TokenStore> { SecureTokenStore(get(), get()) }
     single<HttpClient> { createHttpClient(config = get(), tokenStore = get()) }
+    single { AuthSessionInvalidator(get()) }
 
     single { AuthApi(get(), get(), get()) }
     single { SyncApi(get(), get(), get()) }
