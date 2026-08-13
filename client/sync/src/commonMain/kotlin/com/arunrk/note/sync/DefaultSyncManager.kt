@@ -5,6 +5,7 @@ import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.coroutines.mapToOne
 import com.arunrk.note.core.common.connectivity.NetworkMonitor
 import com.arunrk.note.core.common.coroutines.DispatcherProvider
+import com.arunrk.note.core.common.lifecycle.AppLifecycleMonitor
 import com.arunrk.note.core.common.log.Log
 import com.arunrk.note.core.common.platform.currentTimeMillis
 import com.arunrk.note.core.database.sql.NoteDatabase
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -51,6 +53,7 @@ class DefaultSyncManager(
     private val database: NoteDatabase,
     private val authRepository: AuthRepository,
     private val networkMonitor: NetworkMonitor,
+    private val lifecycle: AppLifecycleMonitor,
     private val dispatchers: DispatcherProvider,
     private val scope: CoroutineScope,
 ) : SyncManager {
@@ -92,6 +95,7 @@ class DefaultSyncManager(
             observeLocalChanges()
             consumeRequests()
             observeConnectivity()
+            observeForeground()
             pollForRemoteChanges()
             runPeriodically()
         }
@@ -198,6 +202,19 @@ class DefaultSyncManager(
     }
 
     /**
+     * Returning to the app is the moment these notes are about to be read, and
+     * therefore the moment they are most worth refreshing: a note written on
+     * another device while this one was away should not still be missing from a
+     * list the user is now looking at.
+     */
+    private fun CoroutineScope.observeForeground() {
+        // No distinctUntilChanged: StateFlow already conflates equal values.
+        lifecycle.isActive
+            .onEach { active -> if (active) requestSync(SyncReason.FOREGROUND) }
+            .launchIn(this)
+    }
+
+    /**
      * Multi-device delivery.
      *
      * Pushing is prompt - an edit is on its way within seconds - but nothing
@@ -206,20 +223,23 @@ class DefaultSyncManager(
      * "syncs automatically" means to the person using it.
      *
      * The poll costs one small GET; the full cycle follows only when the server
-     * says there is something to fetch. Phase C will pause this loop while the
-     * app is in the background, where the cost has no benefit.
+     * says there is something to fetch.
      */
     private fun CoroutineScope.pollForRemoteChanges() {
         launch {
             while (true) {
-                // Delay first: start() has already asked for a full cycle.
+                awaitActive()
+                // Delay first: start() and the foreground trigger have both
+                // already asked for a full cycle.
                 delay(DELTA_POLL_INTERVAL_MILLIS)
 
                 val userId = currentUserId ?: continue
 
-                // Offline, or inside a backoff window after a failure. Both are
-                // already handled by paths that will resume properly; adding a
-                // doomed request every thirty seconds helps nobody.
+                // Backgrounded during the wait, offline, or inside a backoff
+                // window after a failure. Each of those resumes properly by
+                // another route; a doomed request every thirty seconds helps
+                // nobody.
+                if (!lifecycle.isActive.value) continue
                 if (!networkMonitor.isOnline.value) continue
                 if (currentTimeMillis() < nextAttemptAt) continue
 
@@ -233,10 +253,24 @@ class DefaultSyncManager(
     private fun CoroutineScope.runPeriodically() {
         launch {
             while (true) {
+                awaitActive()
                 delay(PERIODIC_INTERVAL_MILLIS)
                 requestSync(SyncReason.PERIODIC)
             }
         }
+    }
+
+    /**
+     * Suspends outright while the app is in the background - no timer, no
+     * wakeup, nothing spent on a screen nobody is looking at. Returns
+     * immediately when the app is already in front.
+     *
+     * Only the polling loops wait on this. Work already in flight is never
+     * gated: a retry carrying an edit the user just made must finish whether or
+     * not they have since switched away.
+     */
+    private suspend fun awaitActive() {
+        lifecycle.isActive.first { it }
     }
 
     /**
@@ -291,7 +325,10 @@ class DefaultSyncManager(
     }
 
     private fun drainRequests() {
-        while (requests.tryReceive().isSuccess) Unit
+        @Suppress("ControlFlowWithEmptyBody")
+        while (requests.tryReceive().isSuccess) {
+            // Discarding is the point.
+        }
     }
 
     // -----------------------------------------------------------------------

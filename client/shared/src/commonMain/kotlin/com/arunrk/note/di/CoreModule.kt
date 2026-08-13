@@ -4,6 +4,7 @@ import com.arunrk.note.core.common.connectivity.NetworkMonitor
 import com.arunrk.note.core.common.connectivity.createConnectivityObserver
 import com.arunrk.note.core.common.coroutines.DefaultDispatcherProvider
 import com.arunrk.note.core.common.coroutines.DispatcherProvider
+import com.arunrk.note.core.common.lifecycle.createAppLifecycleMonitor
 import com.arunrk.note.core.common.platform.PlatformContext
 import com.arunrk.note.core.common.platform.platformName
 import com.arunrk.note.core.database.createDatabase
@@ -74,6 +75,10 @@ fun coreModule(context: PlatformContext, apiConfig: ApiConfig): Module = module 
             get<CoroutineScope>(AppScope).launch { monitor.observePlatformSignal() }
         }
     }
+
+    // ---- lifecycle --------------------------------------------------------
+
+    single { createAppLifecycleMonitor(get()) }
 
     // ---- network ----------------------------------------------------------
 
