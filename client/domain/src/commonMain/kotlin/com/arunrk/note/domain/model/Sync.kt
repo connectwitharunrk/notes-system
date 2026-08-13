@@ -11,6 +11,9 @@ enum class SyncReason {
 
     /** A failed cycle scheduling its own next attempt, after a backoff. */
     RETRY,
+
+    /** The cheap status probe found the server holding changes we have not seen. */
+    REMOTE_CHANGE,
 }
 
 sealed interface SyncState {
