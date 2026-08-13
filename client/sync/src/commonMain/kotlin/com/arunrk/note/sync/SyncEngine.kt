@@ -37,12 +37,12 @@ private const val PULL_PAGE_SIZE = 200
 class SyncEngine(
     private val api: SyncApi,
     private val store: SyncLocalStore,
-) {
+) : SyncCycle {
 
     private val mutex = Mutex()
     private var lastPurgeAt = 0L
 
-    suspend fun sync(userId: String, reason: SyncReason): SyncResult = mutex.withLock {
+    override suspend fun sync(userId: String, reason: SyncReason): SyncResult = mutex.withLock {
         Log.i(TAG, "Sync started ($reason)")
 
         val pushOutcome = push(userId)
@@ -92,7 +92,7 @@ class SyncEngine(
      * Never answers true while a cycle is running: that cycle is already pulling
      * whatever is there, and saying yes would just queue a redundant one.
      */
-    suspend fun hasRemoteChanges(userId: String): Boolean {
+    override suspend fun hasRemoteChanges(userId: String): Boolean {
         if (mutex.isLocked) return false
 
         val cursor = store.cursor(userId)

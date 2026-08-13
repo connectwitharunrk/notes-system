@@ -53,7 +53,9 @@ val dataModule: Module = module {
     single { SyncEngine(get(), get()) }
     single<SyncManager> {
         DefaultSyncManager(
-            engine = get(),
+            // Explicit: the manager depends on the SyncCycle seam, but there is
+            // one engine and it is registered under its own type.
+            engine = get<SyncEngine>(),
             store = get(),
             database = get(),
             authRepository = get(),
