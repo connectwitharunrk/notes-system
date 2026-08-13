@@ -39,7 +39,7 @@ class SyncFlowIntegrationTest {
 
     private companion object {
         val koin: org.koin.core.Koin by lazy {
-            initKoin(PlatformContext(), baseUrl = "http://127.0.0.1:8080").koin
+            initKoin(PlatformContext.INSTANCE, baseUrl = "http://127.0.0.1:8080").koin
         }
     }
 
