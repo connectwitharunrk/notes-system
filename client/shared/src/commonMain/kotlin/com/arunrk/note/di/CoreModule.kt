@@ -24,6 +24,7 @@ import com.arunrk.note.data.auth.SecureTokenStore
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -62,7 +63,17 @@ fun coreModule(context: PlatformContext, apiConfig: ApiConfig): Module = module 
     // ---- connectivity -----------------------------------------------------
 
     single { createConnectivityObserver(get(), get(AppScope)) }
-    single { NetworkMonitor(get()) }
+    single {
+        NetworkMonitor(get()).also { monitor ->
+            // The OS signal is the only thing that can notice a reconnection
+            // while the app is making no requests. Without this collection the
+            // monitor is corrected exclusively by requests that complete - so
+            // once a failed request marked us offline, and the sync engine
+            // stopped making requests because we were offline, nothing was left
+            // that could ever say otherwise.
+            get<CoroutineScope>(AppScope).launch { monitor.observePlatformSignal() }
+        }
+    }
 
     // ---- network ----------------------------------------------------------
 

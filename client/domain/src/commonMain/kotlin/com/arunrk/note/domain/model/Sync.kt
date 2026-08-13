@@ -8,6 +8,9 @@ enum class SyncReason {
     PERIODIC,
     MANUAL,
     SIGN_IN,
+
+    /** A failed cycle scheduling its own next attempt, after a backoff. */
+    RETRY,
 }
 
 sealed interface SyncState {

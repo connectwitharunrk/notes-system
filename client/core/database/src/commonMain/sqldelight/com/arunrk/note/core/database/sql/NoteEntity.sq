@@ -82,6 +82,20 @@ SELECT syncStatus, COUNT(*) AS total FROM noteEntity
 WHERE userId = :userId
 GROUP BY syncStatus;
 
+-- The identity of the local backlog, not merely its size.
+--
+-- A count alone cannot see an edit to a note that is ALREADY waiting - the
+-- number does not move - so the sync trigger would miss exactly the edit made
+-- while that note's upload was in flight. localRevision is bumped by every local
+-- write, so summing it over the dirty set changes whenever any of those notes is
+-- touched again.
+dirtyFingerprint:
+SELECT COUNT(*)                        AS total,
+       COALESCE(SUM(localRevision), 0) AS revisionSum,
+       COALESCE(MAX(updatedAt), 0)     AS latestUpdatedAt
+FROM noteEntity
+WHERE userId = :userId AND syncStatus IN ('PENDING', 'FAILED');
+
 countConflicts:
 SELECT COUNT(*) FROM noteEntity WHERE userId = :userId AND syncStatus = 'CONFLICT';
 

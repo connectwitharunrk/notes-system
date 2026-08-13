@@ -40,6 +40,7 @@ class SyncEngine(
 ) {
 
     private val mutex = Mutex()
+    private var lastPurgeAt = 0L
 
     suspend fun sync(userId: String, reason: SyncReason): SyncResult = mutex.withLock {
         Log.i(TAG, "Sync started ($reason)")
@@ -64,7 +65,9 @@ class SyncEngine(
         )
 
         if (combined.isSuccess) {
-            store.recordSuccess(userId, currentTimeMillis())
+            val now = currentTimeMillis()
+            store.recordSuccess(userId, now)
+            purgeOldTombstones(userId, now)
             Log.i(
                 TAG,
                 "Sync finished: pushed=${combined.pushed} pulled=${combined.pulled} " +
@@ -281,6 +284,22 @@ class SyncEngine(
         return applied
     }
 
+    /**
+     * A tombstone exists only to carry a deletion to the other devices. Once the
+     * server has confirmed it and long enough has passed for every device to have
+     * pulled it, keeping the row does nothing but grow the database for the rest
+     * of the account's life.
+     *
+     * Rate-limited because it is a write: running it on every cycle would wake
+     * every observing query in the app - the note list included - fifteen minutes
+     * apart, forever, to delete nothing.
+     */
+    private suspend fun purgeOldTombstones(userId: String, now: Long) {
+        if (now - lastPurgeAt < PURGE_INTERVAL_MILLIS) return
+        lastPurgeAt = now
+        store.purgeConfirmedTombstones(userId, olderThan = now - TOMBSTONE_RETENTION_MILLIS)
+    }
+
     private fun AppError.describe(): String = when (this) {
         AppError.Offline -> "offline"
         AppError.Timeout -> "timed out"
@@ -291,5 +310,14 @@ class SyncEngine(
 
     private companion object {
         const val MAX_PULL_PAGES = 500
+
+        /**
+         * Only rows the server has already confirmed are dropped, and the server
+         * keeps its own tombstone for 90 days, so this is a grace period rather
+         * than a deadline: shorter than the server's on purpose, because after
+         * this long the row is doing nothing but taking up space.
+         */
+        const val TOMBSTONE_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1000
+        const val PURGE_INTERVAL_MILLIS = 24L * 60 * 60 * 1000
     }
 }
