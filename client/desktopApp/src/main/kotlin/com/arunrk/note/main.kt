@@ -10,7 +10,7 @@ import com.arunrk.note.di.initKoin
 
 fun main() {
     // Before any UI: the first composition resolves dependencies immediately.
-    initKoin(PlatformContext())
+    initKoin(PlatformContext.INSTANCE)
 
     application {
         Window(

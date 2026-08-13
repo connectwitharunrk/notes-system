@@ -5,4 +5,4 @@ package com.arunrk.note.di
  * A physical device needs the host's LAN address instead, passed explicitly to
  * [initKoin].
  */
-actual fun defaultApiBaseUrl(): String = "http://10.0.2.2:8080"
+actual fun defaultApiBaseUrl(): String = "http://192.168.0.126:8080"

@@ -5,4 +5,4 @@ package com.arunrk.note.di
  * resolves to ::1 first and this PostgreSQL setup rejects IPv6 connections.
  * Keeping both ends on IPv4 avoids a confusing class of failure.
  */
-actual fun defaultApiBaseUrl(): String = "http://127.0.0.1:8080"
+actual fun defaultApiBaseUrl(): String = "http://192.168.0.126:8080"

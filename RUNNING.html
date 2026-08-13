@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes System — Running the Client &amp; Server</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f6f7f9;
+    --bg-code: #f2f3f5;
+    --text: #1c1e21;
+    --text-soft: #5c6169;
+    --border: #e2e5e9;
+    --accent: #2f6df6;
+    --accent-soft: #eaf1ff;
+    --warn-bg: #fff8e6;
+    --warn-border: #e8c56a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c;
+      --bg-soft: #1d2025;
+      --bg-code: #22262c;
+      --text: #e6e8eb;
+      --text-soft: #9aa1ac;
+      --border: #2e333a;
+      --accent: #7ea6ff;
+      --accent-soft: #1e2735;
+      --warn-bg: #2b2413;
+      --warn-border: #7a6222;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c;
+    --bg-soft: #1d2025;
+    --bg-code: #22262c;
+    --text: #e6e8eb;
+    --text-soft: #9aa1ac;
+    --border: #2e333a;
+    --accent: #7ea6ff;
+    --accent-soft: #1e2735;
+    --warn-bg: #2b2413;
+    --warn-border: #7a6222;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 8px; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--text-soft); margin: 0; }
+
+  h2 {
+    font-size: 1.3rem; margin: 48px 0 4px; letter-spacing: -0.01em;
+    padding-top: 8px;
+  }
+  h3 { font-size: 1.02rem; margin: 28px 0 8px; }
+  p { margin: 10px 0; }
+  a { color: var(--accent); }
+
+  .step-num {
+    display: inline-block; min-width: 1.6em; height: 1.6em; line-height: 1.6em;
+    text-align: center; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 0.78em; font-weight: 700; margin-right: 8px;
+    vertical-align: 0.12em;
+  }
+
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre .c { color: var(--text-soft); }
+  code:not(pre code) {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 5px;
+  }
+
+  .note, .warn {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    background: var(--bg-soft);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 0.93rem;
+  }
+  .warn { background: var(--warn-bg); border-left-color: var(--warn-border); }
+  .note strong, .warn strong { display: block; margin-bottom: 2px; }
+
+  .table-scroll { overflow-x: auto; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 460px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-weight: 600; color: var(--text-soft); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  td code { white-space: nowrap; }
+
+  .toc { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin: 28px 0 0; }
+  .toc ol { margin: 6px 0 0; padding-left: 22px; }
+  .toc li { margin: 3px 0; }
+
+  ul.tight { margin: 8px 0; padding-left: 22px; }
+  ul.tight li { margin: 4px 0; }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text-soft); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Notes System — Running the Client &amp; Server</h1>
+  <p class="sub">Offline-first notes app. Kotlin Multiplatform client (Android / iOS / Desktop), Spring Boot server, PostgreSQL.</p>
+</header>
+
+<div class="toc">
+  <strong>On this page</strong>
+  <ol>
+    <li><a href="#prereqs">Prerequisites</a></li>
+    <li><a href="#db">Start the database</a></li>
+    <li><a href="#server">Run the server</a></li>
+    <li><a href="#client">Run the client</a></li>
+    <li><a href="#verify">Verify it works</a></li>
+    <li><a href="#package">Package the desktop app</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+  </ol>
+</div>
+
+<h2 id="prereqs">Prerequisites</h2>
+
+<ul class="tight">
+  <li><strong>JDK 17+</strong> — Gradle provisions a JDK 21 toolchain itself.</li>
+  <li><strong>PostgreSQL 15+</strong>, or Docker to run it in a container.</li>
+  <li><strong>Android Studio / an emulator</strong> for the Android target.</li>
+  <li><strong>Xcode 15+ on macOS</strong> for the iOS target.</li>
+  <li><strong>Windows PowerShell 5.1+</strong> for the verification scripts.</li>
+</ul>
+
+<div class="note">
+  <strong>Shell syntax</strong>
+  Commands below use <code>./gradlew</code> (macOS / Linux / Git Bash). In PowerShell or cmd on
+  Windows, use <code>.\gradlew.bat</code> instead — everything after it is identical.
+</div>
+
+<p>The client and the server are two <em>separate</em> Gradle builds, each with its own
+wrapper. Always run their commands from inside <code>client/</code> and <code>server/</code>
+respectively — there is no root-level build.</p>
+
+<pre>notes-system/
+├── client/            Kotlin Multiplatform app  (own gradlew)
+├── server/            Spring Boot backend       (own gradlew)
+├── docs/              architecture reference
+└── docker-compose.yml PostgreSQL + optional pgAdmin</pre>
+
+
+<h2 id="db"><span class="step-num">1</span>Start the database</h2>
+
+<p>The server will not boot without PostgreSQL. Easiest path is Docker, from the repository root:</p>
+
+<pre>docker compose up -d postgres</pre>
+
+<p>That starts <code>postgres:17-alpine</code> on port <strong>5432</strong> with database
+<code>notes</code>, user <code>notes</code>, password <code>notes</code>, and a persistent
+<code>notes-pgdata</code> volume. Check it came up healthy:</p>
+
+<pre>docker compose ps</pre>
+
+<h3>Optional: pgAdmin</h3>
+
+<p>A pgAdmin container is defined behind a profile, so it only starts when asked for:</p>
+
+<pre>docker compose --profile tools up -d</pre>
+
+<p>Then open <a href="http://localhost:5050">http://localhost:5050</a> — login
+<code>dev@notes.local</code> / <code>notes</code>.</p>
+
+<h3>Alternative: an existing local PostgreSQL</h3>
+
+<pre>psql -U postgres -h 127.0.0.1 \
+  -c "CREATE ROLE notes WITH LOGIN PASSWORD 'notes';" \
+  -c "CREATE DATABASE notes OWNER notes ENCODING 'UTF8';"</pre>
+
+<div class="warn">
+  <strong>On Windows, use 127.0.0.1 — not localhost</strong>
+  <code>localhost</code> resolves to <code>::1</code> first, and a default PostgreSQL install
+  rejects SCRAM auth over IPv6 while accepting it over IPv4. The symptom is a
+  "password authentication failed" error that has nothing to do with the password.
+</div>
+
+
+<h2 id="server"><span class="step-num">2</span>Run the server</h2>
+
+<pre>cd server
+./gradlew :app:bootRun          <span class="c"># PowerShell: .\gradlew.bat :app:bootRun</span></pre>
+
+<p>Flyway creates the whole schema on first run — no manual migration step. The server listens on
+<strong>port 8080</strong>.</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Endpoint</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><a href="http://localhost:8080/swagger-ui.html">/swagger-ui.html</a></td><td>Interactive API docs</td></tr>
+    <tr><td><a href="http://localhost:8080/v3/api-docs">/v3/api-docs</a></td><td>OpenAPI JSON</td></tr>
+    <tr><td><a href="http://localhost:8080/actuator/health">/actuator/health</a></td><td>Health check — quickest "is it up?"</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Configuration</h3>
+
+<p>Every value below has a working development default, so you normally set none of them.
+Override via environment variables when you need to:</p>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>SERVER_PORT</code></td><td><code>8080</code></td><td>HTTP port</td></tr>
+    <tr><td><code>DB_URL</code></td><td><code>jdbc:postgresql://127.0.0.1:5432/notes</code></td><td>JDBC URL</td></tr>
+    <tr><td><code>DB_USER</code></td><td><code>notes</code></td><td>Database user</td></tr>
+    <tr><td><code>DB_PASSWORD</code></td><td><code>notes</code></td><td>Database password</td></tr>
+    <tr><td><code>JWT_SECRET</code></td><td>dev-only placeholder</td><td>HS256 signing key — <strong>must</strong> be overridden in production, minimum 32 bytes</td></tr>
+  </tbody>
+</table>
+</div>
+
+<pre><span class="c"># Example: run on a different port</span>
+SERVER_PORT=9090 ./gradlew :app:bootRun
+
+<span class="c"># PowerShell equivalent</span>
+$env:SERVER_PORT = "9090"; .\gradlew.bat :app:bootRun</pre>
+
+
+<h2 id="client"><span class="step-num">3</span>Run the client</h2>
+
+<p>One shared codebase, three entry points. All commands run from <code>client/</code>.</p>
+
+<h3>Desktop (JVM)</h3>
+
+<pre>cd client
+./gradlew :desktopApp:run                <span class="c"># standard run</span>
+./gradlew :desktopApp:hotRun --auto      <span class="c"># hot reload while developing</span></pre>
+
+<h3>Android</h3>
+
+<pre>cd client
+./gradlew :androidApp:installDebug       <span class="c"># build + install on running emulator/device</span>
+./gradlew :androidApp:assembleDebug      <span class="c"># build the APK only</span></pre>
+
+<p>The Android emulator reaches the host machine at <code>10.0.2.2</code>, which the client already
+uses as its default base URL — an emulator needs no configuration. A <strong>physical device</strong>
+is on your LAN instead, so it needs the host's address passed at Koin startup:</p>
+
+<pre>initKoin(context, baseUrl = "http://192.168.x.x:8080")</pre>
+
+<h3>iOS</h3>
+
+<p>Open <code>client/iosApp/iosApp.xcodeproj</code> in Xcode and run from there.</p>
+
+<div class="warn">
+  <strong>iOS is unverified</strong>
+  iOS cannot be compiled on a Windows host, so the Keychain storage, NWPathMonitor, native SQLite
+  driver and Darwin HTTP engine are written to the documented APIs but have never been built or run.
+</div>
+
+<div class="note">
+  <strong>The client does not need the server</strong>
+  The local database is the source of truth for the UI, so the app is fully usable with the backend
+  switched off. Start the server when you want to exercise sync, auth or conflict handling.
+</div>
+
+
+<h2 id="verify"><span class="step-num">4</span>Verify it works</h2>
+
+<h3>Unit tests — no database, no server</h3>
+
+<pre>cd server
+./gradlew :common:test :domain:test      <span class="c"># 85 backend unit tests</span>
+
+cd client
+./gradlew jvmTest                        <span class="c"># 88 client tests</span></pre>
+
+<p>Most client tests need nothing; the integration tests among them do need the server running.</p>
+
+<h3>End-to-end HTTP scripts — server must be running</h3>
+
+<pre>cd server
+./scripts/verify-phase1.ps1     <span class="c"># 41 assertions: auth, sessions, rate limiting</span>
+./scripts/verify-phase2.ps1     <span class="c"># 61 assertions: notes, search, sync, conflicts</span></pre>
+
+<p>These are the quickest way to see the system actually work. The conflict section of
+<code>verify-phase2.ps1</code> makes two devices disagree about the same note and shows both
+versions surviving rather than one overwriting the other.</p>
+
+
+<h2 id="package"><span class="step-num">5</span>Package the desktop app</h2>
+
+<pre>cd client
+./gradlew :desktopApp:packageDistributionForCurrentOS</pre>
+
+<p>Produces an <code>.msi</code>, <code>.dmg</code> or <code>.deb</code> under
+<code>client/desktopApp/build/compose/binaries/main/</code>, depending on the host OS.</p>
+
+
+<h2 id="trouble">Troubleshooting</h2>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Symptom</th><th>Cause &amp; fix</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>"password authentication failed" for user <code>notes</code></td>
+      <td>Usually IPv6, not a wrong password. Use <code>127.0.0.1</code> instead of <code>localhost</code> in <code>DB_URL</code>.</td>
+    </tr>
+    <tr>
+      <td>Server exits at startup with a connection refused</td>
+      <td>PostgreSQL isn't up yet. <code>docker compose up -d postgres</code>, then <code>docker compose ps</code> to confirm it's healthy.</td>
+    </tr>
+    <tr>
+      <td>Port 8080 already in use</td>
+      <td>Start on another port with <code>SERVER_PORT</code>, and point the client's <code>baseUrl</code> at it.</td>
+    </tr>
+    <tr>
+      <td>Hibernate schema validation failure</td>
+      <td><code>ddl-auto</code> is <code>validate</code> — Flyway owns the schema. If migrations were interrupted, drop the volume and start clean: <code>docker compose down -v &amp;&amp; docker compose up -d postgres</code>. <em>This deletes all local data.</em></td>
+    </tr>
+    <tr>
+      <td>Android app can't reach the server</td>
+      <td>Emulator: host is <code>10.0.2.2</code> (already the default). Physical device: pass your LAN IP as <code>baseUrl</code> and make sure the firewall allows port 8080.</td>
+    </tr>
+    <tr>
+      <td><code>./gradlew</code> not recognised on Windows</td>
+      <td>Use <code>.\gradlew.bat</code>, or run the command from Git Bash.</td>
+    </tr>
+    <tr>
+      <td>Password-reset email never arrives</td>
+      <td>Expected in development — the reset token is printed to the server log instead of being emailed.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<footer>
+  Full design and the reasoning behind it: <code>docs/ARCHITECTURE.md</code> · Overview: <code>README.md</code>
+</footer>
+
+</div>
+</body>
+</html>
