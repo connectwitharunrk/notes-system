@@ -59,10 +59,11 @@ fun NoteCard(
                     modifier = Modifier.weight(1f),
                 )
 
-                IconButton(
-                    onClick = onTogglePin,
-                    modifier = Modifier.size(32.dp),
-                ) {
+                // Left at its default 48dp. Constraining the button to match the
+                // 18dp icon would look tidier and put the tap target below the
+                // minimum, which turns pinning into a game of precision on a
+                // phone - and worse for anyone with a motor impairment.
+                IconButton(onClick = onTogglePin) {
                     Icon(
                         imageVector = if (note.isPinned) {
                             NoteIcons.PushPin
