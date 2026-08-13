@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -48,7 +49,7 @@ private const val OFFLINE_PROBE_INTERVAL_MILLIS = 60_000L
 private const val DELTA_POLL_INTERVAL_MILLIS = 30_000L
 
 class DefaultSyncManager(
-    private val engine: SyncEngine,
+    private val engine: SyncCycle,
     private val store: SyncLocalStore,
     private val database: NoteDatabase,
     private val authRepository: AuthRepository,
@@ -186,8 +187,12 @@ class DefaultSyncManager(
     }
 
     private fun CoroutineScope.observeConnectivity() {
-        // No distinctUntilChanged: StateFlow already conflates equal values.
         networkMonitor.isOnline
+            // Transitions only. StateFlow replays its current value to a new
+            // collector, so without this an app that starts online reports
+            // "reconnected" the instant it launches - a second full cycle,
+            // moments after the one start() already asked for.
+            .drop(1)
             .onEach { online ->
                 if (online) {
                     // Reconnecting is the moment a queued change can finally go
@@ -208,8 +213,11 @@ class DefaultSyncManager(
      * list the user is now looking at.
      */
     private fun CoroutineScope.observeForeground() {
-        // No distinctUntilChanged: StateFlow already conflates equal values.
         lifecycle.isActive
+            // Transitions only, for the same reason as connectivity: an app
+            // starting up is already in the foreground, and start() has asked
+            // for that cycle. What matters here is *coming back*.
+            .drop(1)
             .onEach { active -> if (active) requestSync(SyncReason.FOREGROUND) }
             .launchIn(this)
     }

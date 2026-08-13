@@ -404,19 +404,49 @@ again next cycle. Without this guard that edit is silently and permanently lost.
 
 | Trigger | Behaviour |
 |---|---|
-| App start / foreground | immediate |
+| App start | immediate |
+| Foreground (returned to) | immediate |
 | Connectivity regained | immediate; also resets the backoff |
 | Local mutation | debounced 3 s |
+| Remote change (delta poll) | every 30 s while foregrounded, full cycle only if the server is ahead |
+| Retry after failure | exponential 2 s → 4 s → … → 5 min |
 | Periodic | every 15 min while foregrounded |
 | Manual (Settings) | immediate |
 | Sign-in | immediate |
 
+Requests are conflated through a `Channel(CONFLATED)`, not a `SharedFlow`: a
+shared flow discards what it is given when nothing is collecting, and `start()`
+necessarily asks for a sync before the consumer it just launched is running — so
+the sync at app start was being dropped. The consumer is **sequential** and never
+cancels a cycle that is already running; cancelling a push mid-request leaves the
+server's answer unknown, and the re-push then carries a superseded `base_version`
+and conflicts the note against itself.
+
+Connectivity and lifecycle are observed with `.drop(1)`, transitions only. Both
+are StateFlows and replay their current value, so an app launching online and in
+the foreground would otherwise run three full cycles where one was wanted.
+
 **The local-change trigger is derived, not announced.** A local edit marks its
-note `PENDING`, so a rise in the pending count *is* the signal that something
-needs pushing. `DefaultSyncManager` watches that count rather than having every
-use case remember to call `requestSync` — which keeps the domain free of any
-dependency on the sync engine and makes it impossible to add a write path that
-forgets to trigger a sync.
+note `PENDING`, so the dirty set *is* the signal that something needs pushing.
+`DefaultSyncManager` watches the database rather than having every use case
+remember to call `requestSync` — which keeps the domain free of any dependency on
+the sync engine and makes it impossible to add a write path that forgets to
+trigger a sync.
+
+What it watches is a *fingerprint* of that set — `COUNT`, `SUM(local_revision)`,
+`MAX(updated_at)` — and not merely the count. An edit to a note that is already
+`PENDING` leaves the count untouched, and that is precisely the edit made while
+the note's upload was in flight: the one the compare-and-set guard above
+deliberately leaves `PENDING` for the next cycle to carry. Watching the count
+alone meant nothing asked for that next cycle.
+
+**Multi-device delivery is a poll, not a push.** Pushing is prompt, but nothing
+pulled except the 15-minute tick, so a note written on one device could sit
+unseen on another for a quarter of an hour. `GET /sync/status` answers "is there
+anything for me?" in one small request carrying no note payloads, so the app can
+ask every 30 s and run the expensive cycle only when the answer is yes. A server
+push channel (SSE/WebSocket) would be lower latency and is the obvious next step;
+this costs no server change at all.
 
 **Sign-out pushes before it wipes.** `SignOutUseCase` attempts a final sync,
 then stops the engine, then clears local notes, then ends the session. Wiping
@@ -555,6 +585,7 @@ Nine contracts: `Login`, `Register`, `ForgotPassword`, `NotesList`, `NoteEditor`
 | L11 | **All `iosMain` code is unverified** | iOS targets cannot be compiled on a Windows host, so every `actual` in `iosMain` — Keychain storage, NWPathMonitor connectivity, the native SQLite driver, the Darwin HTTP engine — is written to the documented API but has never been built or run. Expect to fix compilation details on the first build from a Mac. Android and Desktop are verified by running them. |
 | L12 | Desktop has no OS connectivity signal | A plain JVM process cannot observe network state without polling a hard-coded host, which is both a privacy smell and wrong behind a proxy. `NetworkMonitor` instead derives offline status from real request outcomes, so desktop notices it is offline one failed request later than mobile. |
 | L13 | `Icons.Filled.*` is unavailable | Compose Multiplatform's material3 does not bundle `androidx.compose.material.icons` at all, and `material-icons-extended` stopped at 1.7.3. Every icon is hand-built from Material Symbols path data in `NoteIcons` — no dependency, no version skew. |
-| L15 | No OS-level background sync | Sync runs on app start, on reconnect, after edits (debounced), every 15 min while foregrounded, and on demand. WorkManager and BGTaskScheduler are both platform-specific and unverifiable on this host, so they are deliberately not wired up. |
+| L15 | No OS-level background sync | Sync runs on app start, on return to the foreground, on reconnect, after edits (debounced), on a 30 s delta poll and a 15 min tick while foregrounded, on retry after failure, and on demand. Backgrounded, the polling loops suspend outright rather than waking on a timer. WorkManager and BGTaskScheduler are both platform-specific and unverifiable on this host, so they are deliberately not wired up. |
+| L16 | Desktop "foreground" means window focus | AWT exposes no visibility signal, only which window is active. A notes window left open but unfocused stops polling and can show stale content while visible; focusing it syncs immediately, so content is fresh by the time anyone reads it. |
 | L16 | Backend integration tests need Docker | Testcontainers cannot run here, so the backend's 85 tests are unit-level over in-memory ports. The HTTP layer, JPA mappings and schema are instead verified by `scripts/verify-phase1.ps1` and `verify-phase2.ps1` against a live server — 102 assertions between them. |
 | L14 | One DataStore per file per process | DataStore registers its file for the process lifetime and refuses a second instance. Production has a single Koin graph so this never bites, but tests must start Koin once per class and fork a JVM per class (`forkEvery(1)`). |
