@@ -80,6 +80,50 @@ class SyncEngine(
         combined
     }
 
+    /**
+     * Asks, cheaply, whether the server holds anything this device has not seen.
+     *
+     * A full cycle is a push, a pull, and a database write per page. Running one
+     * every half minute only to discover that nothing changed would be wasteful
+     * at both ends. `/sync/status` answers the same question in one small GET
+     * carrying no note payloads, so the expensive cycle runs only when there is
+     * genuinely something to fetch.
+     *
+     * Never answers true while a cycle is running: that cycle is already pulling
+     * whatever is there, and saying yes would just queue a redundant one.
+     */
+    suspend fun hasRemoteChanges(userId: String): Boolean {
+        if (mutex.isLocked) return false
+
+        val cursor = store.cursor(userId)
+
+        return when (val outcome = api.status(cursor)) {
+            // Best-effort by design: the probe stays silent about failures and
+            // lets the next real cycle surface them to the user.
+            is Outcome.Failure -> {
+                Log.d(TAG, "Status probe failed: ${outcome.error.describe()}")
+                false
+            }
+
+            is Outcome.Success -> {
+                val status = outcome.value
+                // Below the floor, the deletions we missed have been purged and
+                // can no longer be delivered incrementally - only a full cycle,
+                // which pushes before it rebuilds, recovers from that.
+                val needsResync = cursor < status.tombstoneFloor
+                val hasChanges = status.pendingForCursor > 0
+
+                if (hasChanges || needsResync) {
+                    Log.d(
+                        TAG,
+                        "Server is ahead: ${status.pendingForCursor} change(s) since $cursor",
+                    )
+                }
+                hasChanges || needsResync
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Push
     // -----------------------------------------------------------------------

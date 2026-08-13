@@ -47,6 +47,7 @@ class SyncFlowIntegrationTest {
     private val notes: NoteRepository get() = koin.get()
     private val sync: SyncManager get() = koin.get()
     private val syncApi: SyncApi get() = koin.get()
+    private val engine: SyncEngine get() = koin.get()
     private val database: NoteDatabase get() = koin.get()
 
     private lateinit var userId: String
@@ -126,6 +127,34 @@ class SyncFlowIntegrationTest {
         val local = assertNotNull(row(remoteId), "the remote note should now exist locally")
         assertEquals("From elsewhere", local.title)
         assertEquals("SYNCED", local.syncStatus)
+    }
+
+    /**
+     * The delta poll's decision function. Everything about multi-device delivery
+     * hangs off it: a false negative here means another device's note simply
+     * never arrives until the fifteen-minute tick, which is the delay this poll
+     * exists to remove.
+     */
+    @Test
+    fun `the status probe sees another device's change and goes quiet once pulled`() = runTest {
+        sync.syncNow(SyncReason.MANUAL)
+        assertFalse(
+            engine.hasRemoteChanges(userId),
+            "nothing has happened since that sync; the probe should not ask for a cycle",
+        )
+
+        val remoteId = com.arunrk.note.core.common.id.UuidV7.generate()
+        pushAsOtherDevice(remoteId, baseVersion = 0, title = "Poll me", content = "hi", baseContentHash = null)
+
+        assertTrue(
+            engine.hasRemoteChanges(userId),
+            "the probe should notice the other device's note",
+        )
+
+        sync.syncNow(SyncReason.REMOTE_CHANGE)
+
+        assertNotNull(row(remoteId), "the cycle the probe asked for should have pulled it")
+        assertFalse(engine.hasRemoteChanges(userId), "and the probe should be quiet again")
     }
 
     @Test

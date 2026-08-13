@@ -42,6 +42,9 @@ private const val BACKOFF_MAX_MILLIS = 5 * 60 * 1000L
 /** How often a cycle may test a network we believe to be down. */
 private const val OFFLINE_PROBE_INTERVAL_MILLIS = 60_000L
 
+/** How often a running app asks whether the server has something new for it. */
+private const val DELTA_POLL_INTERVAL_MILLIS = 30_000L
+
 class DefaultSyncManager(
     private val engine: SyncEngine,
     private val store: SyncLocalStore,
@@ -89,6 +92,7 @@ class DefaultSyncManager(
             observeLocalChanges()
             consumeRequests()
             observeConnectivity()
+            pollForRemoteChanges()
             runPeriodically()
         }
 
@@ -191,6 +195,39 @@ class DefaultSyncManager(
                 }
             }
             .launchIn(this)
+    }
+
+    /**
+     * Multi-device delivery.
+     *
+     * Pushing is prompt - an edit is on its way within seconds - but nothing
+     * pulls except the fifteen-minute tick, so a note written on the phone could
+     * sit unseen on the desktop for a quarter of an hour. That is not what
+     * "syncs automatically" means to the person using it.
+     *
+     * The poll costs one small GET; the full cycle follows only when the server
+     * says there is something to fetch. Phase C will pause this loop while the
+     * app is in the background, where the cost has no benefit.
+     */
+    private fun CoroutineScope.pollForRemoteChanges() {
+        launch {
+            while (true) {
+                // Delay first: start() has already asked for a full cycle.
+                delay(DELTA_POLL_INTERVAL_MILLIS)
+
+                val userId = currentUserId ?: continue
+
+                // Offline, or inside a backoff window after a failure. Both are
+                // already handled by paths that will resume properly; adding a
+                // doomed request every thirty seconds helps nobody.
+                if (!networkMonitor.isOnline.value) continue
+                if (currentTimeMillis() < nextAttemptAt) continue
+
+                if (engine.hasRemoteChanges(userId)) {
+                    requestSync(SyncReason.REMOTE_CHANGE)
+                }
+            }
+        }
     }
 
     private fun CoroutineScope.runPeriodically() {
