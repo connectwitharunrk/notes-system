@@ -58,6 +58,7 @@ val dataModule: Module = module {
             database = get(),
             authRepository = get(),
             networkMonitor = get(),
+            lifecycle = get(),
             dispatchers = get(),
             // The process-lifetime scope: sync must outlive any screen, and
             // tying it to a ViewModel would cancel a push mid-flight whenever

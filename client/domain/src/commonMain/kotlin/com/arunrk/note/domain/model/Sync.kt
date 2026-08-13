@@ -14,6 +14,9 @@ enum class SyncReason {
 
     /** The cheap status probe found the server holding changes we have not seen. */
     REMOTE_CHANGE,
+
+    /** The app came back in front of the user, who is about to read these notes. */
+    FOREGROUND,
 }
 
 sealed interface SyncState {
